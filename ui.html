@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html>
+
+<body>
+  <style>
+    body {
+      font-family: sans-serif;
+      padding: 16px;
+      margin: 0;
+      color: #333;
+    }
+
+    .row {
+      display: flex;
+      align-items: center;
+      margin-bottom: 12px;
+      justify-content: space-between;
+    }
+
+    label {
+      font-size: 12px;
+      font-weight: 500;
+      color: #555;
+    }
+
+    input[type="number"] {
+      width: 60px;
+      padding: 4px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+    }
+
+    input[type="color"] {
+      border: none;
+      width: 24px;
+      height: 24px;
+      padding: 0;
+      background: none;
+      cursor: pointer;
+    }
+
+    select {
+      padding: 4px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      width: 80px;
+    }
+
+    button {
+      width: 100%;
+      padding: 8px;
+      background-color: #18A0FB;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      font-weight: 600;
+      cursor: pointer;
+      margin-top: 8px;
+    }
+
+    button:hover {
+      background-color: #0D8DE3;
+    }
+
+    button:disabled {
+      background-color: #ccc;
+      cursor: not-allowed;
+    }
+
+    .status {
+      margin-top: 12px;
+      font-size: 11px;
+      color: #888;
+      text-align: center;
+      min-height: 16px;
+    }
+  </style>
+
+  <div class="row">
+    <label>Stroke Width</label>
+    <input type="number" id="strokeWidth" value="4" min="1" max="100">
+  </div>
+
+  <div class="row">
+    <label>Stroke Color</label>
+    <input type="color" id="strokeColor" value="#FFFFFF">
+  </div>
+
+  <button id="generateBtn">Generate Outline</button>
+  <div class="status" id="status"></div>
+
+  <script>
+    const generateBtn = document.getElementById('generateBtn');
+    const statusEl = document.getElementById('status');
+
+    // Handle "Generate" click
+    generateBtn.onclick = () => {
+      const strokeWidth = parseInt(document.getElementById('strokeWidth').value, 10);
+      const strokeColor = document.getElementById('strokeColor').value;
+      // Scale removed, default to 1 internally if needed, or just don't pass it
+      const scale = 1;
+
+      if (isNaN(strokeWidth) || strokeWidth < 0) {
+        statusEl.textContent = "Invalid stroke width";
+        return;
+      }
+
+      statusEl.textContent = "Processing...";
+      generateBtn.disabled = true;
+
+      // Request the plugin to start processing with these options
+      parent.postMessage({
+        pluginMessage: {
+          type: 'request-process',
+          options: { strokeWidth, strokeColor, scale }
+        }
+      }, '*');
+    };
+
+    // Listen for messages from code.ts
+    window.onmessage = async (event) => {
+      const pluginMessage = event.data.pluginMessage;
+
+      if (pluginMessage.type === 'process-image') {
+        const { bytes, width, height, options } = pluginMessage;
+
+        try {
+          // 1. Convert bytes to Blob URL
+          const blob = new Blob([bytes], { type: 'image/png' });
+          const url = URL.createObjectURL(blob);
+
+          // 2. Run core algorithm
+          // Force scale to 1 (or whatever logic we want for high quality, but user asked for 1x size)
+          // Actually, we still want high quality (natural resolution), so we pass scale=1
+          // but the addSmoothStroke function uses natural resolution anyway.
+          const newImageBase64 = await addSmoothStroke(url, width, height, options.strokeWidth, options.strokeColor, options.scale);
+
+          // 3. Send result back
+          const raw = atob(newImageBase64.split(',')[1]);
+          const uint8Array = new Uint8Array(new ArrayBuffer(raw.length));
+          for (let i = 0; i < raw.length; i++) {
+            uint8Array[i] = raw.charCodeAt(i);
+          }
+
+          parent.postMessage({
+            pluginMessage: {
+              type: 'image-processed',
+              data: uint8Array,
+              options: options // Pass options back so code.ts knows the scale
+            }
+          }, '*');
+
+          statusEl.textContent = "Done!";
+        } catch (error) {
+          console.error(error);
+          statusEl.textContent = "Error processing image";
+          parent.postMessage({ pluginMessage: { type: 'error', message: 'Failed to process image' } }, '*');
+        } finally {
+          generateBtn.disabled = false;
+        }
+      } else if (pluginMessage.type === 'error') {
+        statusEl.textContent = pluginMessage.message;
+        generateBtn.disabled = false;
+      }
+    };
+
+    /**
+    * Core Algorithm
+    */
+    async function addSmoothStroke(imageUrl, targetWidth, targetHeight, strokeWidth, strokeColor, scale) {
+      return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          const ctx = canvas.getContext('2d');
+
+          // Calculate ratio between natural size and target (display) size
+          // We need to determine if the image is width-constrained or height-constrained (FIT mode)
+          const imageRatio = img.naturalWidth / img.naturalHeight;
+          const nodeRatio = targetWidth / targetHeight;
+
+          let ratio;
+          if (nodeRatio > imageRatio) {
+            // Node is wider than image -> Image is constrained by height
+            // Displayed height is targetHeight. Ratio is naturalHeight / targetHeight
+            ratio = img.naturalHeight / targetHeight;
+          } else {
+            // Node is taller than or equal to image -> Image is constrained by width
+            // Displayed width is targetWidth. Ratio is naturalWidth / targetWidth
+            ratio = img.naturalWidth / targetWidth;
+          }
+
+          const scaledStrokeWidth = strokeWidth * ratio;
+          const padding = scaledStrokeWidth * 2;
+
+          // Determine render dimensions based on the target aspect ratio
+          // We use img.naturalWidth/Height to prevent deformation if the node is cropped
+          const renderWidth = img.naturalWidth;
+          const renderHeight = img.naturalHeight;
+
+          // Use render dimensions + padding
+          const finalWidth = renderWidth + padding * 2;
+          const finalHeight = renderHeight + padding * 2;
+
+          // Apply user's output scale (1x, 2x, 3x) to the final high-res canvas
+          canvas.width = finalWidth * scale;
+          canvas.height = finalHeight * scale;
+
+          // Scale context for the output scale AND the drawing operations
+          ctx.scale(scale, scale);
+
+          // --- Drawing Logic ---
+
+          // A. Stroke Layer (Shadow)
+          ctx.globalCompositeOperation = 'source-over';
+          ctx.shadowColor = strokeColor;
+          ctx.shadowBlur = scale * ratio; // Adjust blur for resolution
+
+          const steps = 32;
+          const angleStep = (Math.PI * 2) / steps;
+
+          for (let i = 0; i < steps; i++) {
+            const angle = i * angleStep;
+            const dx = Math.cos(angle) * scaledStrokeWidth;
+            const dy = Math.sin(angle) * scaledStrokeWidth;
+            // Draw at render size (preserving node aspect ratio)
+            ctx.drawImage(img, padding + dx, padding + dy, renderWidth, renderHeight);
+          }
+
+          // B. Solidify Color
+          ctx.globalCompositeOperation = 'source-in';
+          ctx.fillStyle = strokeColor;
+          ctx.fillRect(0, 0, finalWidth, finalHeight);
+
+          // C. Original Image
+          ctx.globalCompositeOperation = 'source-over';
+          ctx.shadowColor = 'transparent';
+          ctx.shadowBlur = 0;
+          ctx.drawImage(img, padding, padding, renderWidth, renderHeight);
+
+          // --- End Drawing ---
+
+          resolve(canvas.toDataURL('image/png'));
+        };
+        img.onerror = reject;
+        img.src = imageUrl;
+      });
+    }
+  </script>
+</body>
+
+</html>
