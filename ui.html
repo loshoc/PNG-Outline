@@ -1,114 +1,373 @@
 <!DOCTYPE html>
 <html>
 
-<body>
+<head>
+  <meta charset="utf-8">
+  <title>PNG Outline</title>
   <style>
+    /* --- 全局样式保持不变 --- */
+    :root {
+      --primary: #18A0FB;
+      --primary-hover: #0D8DE3;
+      --bg: #FFFFFF;
+      --text: #333333;
+      --text-secondary: #B3B3B3;
+      --border: #E6E6E6;
+      --border-hover: #CCCCCC;
+      --radius: 2px;
+    }
+
     body {
-      font-family: sans-serif;
-      padding: 16px;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      padding: 0;
       margin: 0;
-      color: #333;
+      color: var(--text);
+      background: var(--bg);
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      box-sizing: border-box;
+      user-select: none;
+    }
+
+    /* --- 1. 顶部预览区 --- */
+    .hero {
+      background-color: #F5F5F5;
+      background-image:
+        linear-gradient(45deg, #e0e0e0 25%, transparent 25%),
+        linear-gradient(-45deg, #e0e0e0 25%, transparent 25%),
+        linear-gradient(45deg, transparent 75%, #e0e0e0 75%),
+        linear-gradient(-45deg, transparent 75%, #e0e0e0 75%);
+      background-size: 20px 20px;
+      background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
+
+      height: 160px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-bottom: 1px solid var(--border);
+      position: relative;
+      z-index: 0;
+      overflow: hidden;
+    }
+
+    .preview-shape {
+      width: 64px;
+      height: 64px;
+      background: #333;
+      border-radius: 16px;
+      transition: all 0.05s linear;
+      box-shadow: 0 0 0 4px #ffffff;
+    }
+
+    .preview-label {
+      position: absolute;
+      bottom: 8px;
+      right: 12px;
+      font-size: 10px;
+      color: #999;
+      background: rgba(255, 255, 255, 0.9);
+      padding: 2px 6px;
+      border-radius: 4px;
+      pointer-events: none;
+    }
+
+    /* --- 2. 控制面板区域 --- */
+    .controls {
+      padding: 16px;
+      flex: 1;
+      position: relative;
+      z-index: 10;
+      background: var(--bg);
     }
 
     .row {
-      display: flex;
-      align-items: center;
-      margin-bottom: 12px;
-      justify-content: space-between;
+      margin-bottom: 16px;
+    }
+
+    .label-row {
+      margin-bottom: 8px;
     }
 
     label {
-      font-size: 12px;
-      font-weight: 500;
-      color: #555;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      display: block;
     }
 
-    input[type="number"] {
-      width: 60px;
-      padding: 4px;
-      border: 1px solid #ddd;
+    /* --- 输入容器 --- */
+    .input-container-box {
+      display: flex;
+      align-items: center;
+      height: 32px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: transparent;
+      transition: all 0.2s;
+      width: 100%;
+      box-sizing: border-box;
+    }
+
+    .input-container-box:hover {
+      border-color: var(--border-hover);
+    }
+
+    .input-container-box:focus-within {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 1px var(--primary);
+    }
+
+    .input-icon {
+      width: 32px;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: ew-resize;
+      color: var(--text-secondary);
+      border-right: 1px solid transparent;
+    }
+
+    .input-icon:hover {
+      color: var(--text);
+    }
+
+    .scrub-input {
+      border: none;
+      outline: none;
+      background: transparent;
+      font-family: inherit;
+      font-size: 12px;
+      color: var(--text);
+      flex: 1;
+      height: 100%;
+      padding: 0 8px;
+    }
+
+    .color-preview-box {
+      width: 20px;
+      height: 20px;
       border-radius: 4px;
+      border: 1px solid rgba(0, 0, 0, 0.1);
+      position: relative;
+      overflow: hidden;
+      margin-left: 6px;
     }
 
     input[type="color"] {
-      border: none;
-      width: 24px;
-      height: 24px;
-      padding: 0;
-      background: none;
+      position: absolute;
+      opacity: 0;
+      width: 100%;
+      height: 100%;
       cursor: pointer;
     }
 
-    select {
-      padding: 4px;
-      border: 1px solid #ddd;
-      border-radius: 4px;
-      width: 80px;
+    .hex-input {
+      border: none;
+      outline: none;
+      font-size: 12px;
+      font-family: inherit;
+      color: var(--text);
+      text-transform: uppercase;
+      flex: 1;
+      padding: 0 8px;
+    }
+
+    /* --- 3. 底部区域 --- */
+    .footer {
+      padding: 16px;
+      border-top: 1px solid var(--border);
+      background: #FAFAFA;
+      position: relative;
+      z-index: 10;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
     }
 
     button {
       width: 100%;
-      padding: 8px;
-      background-color: #18A0FB;
+      padding: 10px;
+      background-color: var(--primary);
       color: white;
       border: none;
-      border-radius: 6px;
-      font-weight: 600;
+      border-radius: 8px;
+      font-weight: 500;
+      font-size: 13px;
       cursor: pointer;
-      margin-top: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      transition: opacity 0.2s;
     }
 
     button:hover {
-      background-color: #0D8DE3;
+      background-color: var(--primary-hover);
     }
 
     button:disabled {
-      background-color: #ccc;
-      cursor: not-allowed;
+      background-color: var(--primary);
+      opacity: 0.5;
+      cursor: progress;
     }
 
-    .status {
+    .footer-icon {
       margin-top: 12px;
-      font-size: 11px;
-      color: #888;
-      text-align: center;
-      min-height: 16px;
+      font-size: 14px;
+      color: #CCC;
+      cursor: default;
+      user-select: none;
+      opacity: 0.6;
+      transition: opacity 0.3s ease;
+    }
+
+    .footer-icon:hover {
+      opacity: 1;
+    }
+
+    .drag-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 9999;
+      cursor: ew-resize;
+      display: none;
     }
   </style>
+</head>
 
-  <div class="row">
-    <label>Stroke Width</label>
-    <input type="number" id="strokeWidth" value="4" min="1" max="100">
+<body>
+
+  <div class="drag-overlay" id="dragOverlay"></div>
+
+  <div class="hero">
+    <div class="preview-shape" id="previewShape"></div>
+    <div class="preview-label">Preview</div>
   </div>
 
-  <div class="row">
-    <label>Stroke Color</label>
-    <input type="color" id="strokeColor" value="#FFFFFF">
+  <div class="controls">
+    <div class="row">
+      <div class="label-row">
+        <label>Stroke Width</label>
+      </div>
+      <div class="input-container-box">
+        <div class="input-icon" id="strokeIcon" title="Drag to adjust">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M2 3H14V5H2V3ZM2 7H14V9H2V7ZM2 11H14V13H2V11Z" fill="currentColor" fill-opacity="0.8" />
+          </svg>
+        </div>
+        <input type="number" id="strokeInput" class="scrub-input" value="4" min="1" max="200">
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="label-row">
+        <label>Stroke Color</label>
+      </div>
+      <div class="input-container-box">
+        <div class="color-preview-box" id="colorPreview" style="background-color: #FFFFFF;">
+          <input type="color" id="strokeColorInput" value="#FFFFFF">
+        </div>
+        <input type="text" id="colorHexInput" class="hex-input" value="FFFFFF">
+      </div>
+    </div>
   </div>
 
-  <button id="generateBtn">Generate Outline</button>
-  <div class="status" id="status"></div>
+  <div class="footer">
+    <button id="generateBtn">Generate Outline</button>
+    <div class="footer-icon">🐾</div>
+  </div>
 
   <script>
+    // --- Elements ---
+    const strokeInput = document.getElementById('strokeInput');
+    const strokeIcon = document.getElementById('strokeIcon');
+    const dragOverlay = document.getElementById('dragOverlay');
+    const strokeColorInput = document.getElementById('strokeColorInput');
+    const colorHexInput = document.getElementById('colorHexInput');
+    const colorPreview = document.getElementById('colorPreview');
+    const previewShape = document.getElementById('previewShape');
     const generateBtn = document.getElementById('generateBtn');
-    const statusEl = document.getElementById('status');
 
-    // Handle "Generate" click
+    // --- 1. 拖动数值逻辑 ---
+    let isDragging = false;
+    let startX = 0;
+    let startValue = 0;
+
+    strokeIcon.onmousedown = (e) => {
+      isDragging = true;
+      startX = e.clientX;
+      startValue = parseInt(strokeInput.value, 10) || 0;
+      dragOverlay.style.display = 'block';
+      document.body.style.cursor = 'ew-resize';
+      window.addEventListener('mousemove', onDrag);
+      window.addEventListener('mouseup', stopDrag);
+    };
+
+    function onDrag(e) {
+      if (!isDragging) return;
+      const dx = e.clientX - startX;
+      const multiplier = e.shiftKey ? 2 : 0.5;
+      let newValue = Math.round(startValue + (dx * multiplier));
+      if (newValue < 1) newValue = 1;
+      if (newValue > 300) newValue = 300;
+      strokeInput.value = newValue;
+      updatePreview();
+    }
+
+    function stopDrag() {
+      isDragging = false;
+      dragOverlay.style.display = 'none';
+      document.body.style.cursor = 'default';
+      window.removeEventListener('mousemove', onDrag);
+      window.removeEventListener('mouseup', stopDrag);
+    }
+
+    // --- 2. 颜色同步逻辑 ---
+    strokeColorInput.oninput = () => {
+      let hex = strokeColorInput.value.toUpperCase();
+      colorHexInput.value = hex.replace('#', '');
+      updatePreview();
+    };
+
+    colorHexInput.onchange = () => {
+      let val = colorHexInput.value.trim();
+      if (!val.startsWith('#')) val = '#' + val;
+      if (/^#[0-9A-F]{6}$/i.test(val)) {
+        strokeColorInput.value = val;
+        updatePreview();
+      }
+    };
+
+    // --- 3. 预览更新 ---
+    strokeInput.oninput = updatePreview;
+    function updatePreview() {
+      const width = parseInt(strokeInput.value, 10) || 0;
+      const color = strokeColorInput.value;
+      colorPreview.style.backgroundColor = color;
+      previewShape.style.boxShadow = `0 0 0 ${width}px ${color}`;
+    }
+    updatePreview();
+
+    // --- 4. 核心通信逻辑 ---
     generateBtn.onclick = () => {
-      const strokeWidth = parseInt(document.getElementById('strokeWidth').value, 10);
-      const strokeColor = document.getElementById('strokeColor').value;
-      // Scale removed, default to 1 internally if needed, or just don't pass it
+      const strokeWidth = parseInt(strokeInput.value, 10);
+      let strokeColor = colorHexInput.value;
+      if (!strokeColor.startsWith('#')) strokeColor = '#' + strokeColor;
       const scale = 1;
 
       if (isNaN(strokeWidth) || strokeWidth < 0) {
-        statusEl.textContent = "Invalid stroke width";
         return;
       }
 
-      statusEl.textContent = "Processing...";
       generateBtn.disabled = true;
 
-      // Request the plugin to start processing with these options
       parent.postMessage({
         pluginMessage: {
           type: 'request-process',
@@ -117,25 +376,21 @@
       }, '*');
     };
 
-    // Listen for messages from code.ts
+    let activeRequests = 0;
+
     window.onmessage = async (event) => {
       const pluginMessage = event.data.pluginMessage;
 
       if (pluginMessage.type === 'process-image') {
+        activeRequests++;
         const { bytes, width, height, options } = pluginMessage;
 
         try {
-          // 1. Convert bytes to Blob URL
           const blob = new Blob([bytes], { type: 'image/png' });
           const url = URL.createObjectURL(blob);
 
-          // 2. Run core algorithm
-          // Force scale to 1 (or whatever logic we want for high quality, but user asked for 1x size)
-          // Actually, we still want high quality (natural resolution), so we pass scale=1
-          // but the addSmoothStroke function uses natural resolution anyway.
           const newImageBase64 = await addSmoothStroke(url, width, height, options.strokeWidth, options.strokeColor, options.scale);
 
-          // 3. Send result back
           const raw = atob(newImageBase64.split(',')[1]);
           const uint8Array = new Uint8Array(new ArrayBuffer(raw.length));
           for (let i = 0; i < raw.length; i++) {
@@ -146,27 +401,28 @@
             pluginMessage: {
               type: 'image-processed',
               data: uint8Array,
-              options: options // Pass options back so code.ts knows the scale
+              options: options
             }
           }, '*');
 
-          statusEl.textContent = "Done!";
         } catch (error) {
           console.error(error);
-          statusEl.textContent = "Error processing image";
-          parent.postMessage({ pluginMessage: { type: 'error', message: 'Failed to process image' } }, '*');
+          parent.postMessage({ pluginMessage: { type: 'error', message: 'Failed: ' + error.message } }, '*');
         } finally {
-          generateBtn.disabled = false;
+          activeRequests--;
+          if (activeRequests <= 0) {
+            generateBtn.disabled = false;
+            activeRequests = 0;
+          }
         }
       } else if (pluginMessage.type === 'error') {
-        statusEl.textContent = pluginMessage.message;
-        generateBtn.disabled = false;
+        if (activeRequests === 0) {
+          generateBtn.disabled = false;
+        }
       }
     };
 
-    /**
-    * Core Algorithm
-    */
+    // --- 5. 核心算法 (修复缩小和锯齿) ---
     async function addSmoothStroke(imageUrl, targetWidth, targetHeight, strokeWidth, strokeColor, scale) {
       return new Promise((resolve, reject) => {
         const img = new Image();
@@ -174,71 +430,83 @@
           const canvas = document.createElement('canvas');
           const ctx = canvas.getContext('2d');
 
-          // Calculate ratio between natural size and target (display) size
-          // We need to determine if the image is width-constrained or height-constrained (FIT mode)
-          const imageRatio = img.naturalWidth / img.naturalHeight;
-          const nodeRatio = targetWidth / targetHeight;
+          const natW = img.naturalWidth;
+          const natH = img.naturalHeight;
+          const sourceRatio = natW / natH;
+          const targetRatio = targetWidth / targetHeight;
 
-          let ratio;
-          if (nodeRatio > imageRatio) {
-            // Node is wider than image -> Image is constrained by height
-            // Displayed height is targetHeight. Ratio is naturalHeight / targetHeight
-            ratio = img.naturalHeight / targetHeight;
+          let cropW, cropH, offsetX, offsetY, ratio;
+
+          // 1. Center Crop 逻辑
+          if (sourceRatio > targetRatio) {
+            cropH = natH;
+            cropW = natH * targetRatio;
+            offsetX = (natW - cropW) / 2;
+            offsetY = 0;
+            ratio = cropH / targetHeight; // 密度基准：高
           } else {
-            // Node is taller than or equal to image -> Image is constrained by width
-            // Displayed width is targetWidth. Ratio is naturalWidth / targetWidth
-            ratio = img.naturalWidth / targetWidth;
+            cropW = natW;
+            cropH = natW / targetRatio;
+            offsetX = 0;
+            offsetY = (natH - cropH) / 2;
+            ratio = cropW / targetWidth; // 密度基准：宽
           }
 
           const scaledStrokeWidth = strokeWidth * ratio;
-          const padding = scaledStrokeWidth * 2;
 
-          // Determine render dimensions based on the target aspect ratio
-          // We use img.naturalWidth/Height to prevent deformation if the node is cropped
-          const renderWidth = img.naturalWidth;
-          const renderHeight = img.naturalHeight;
+          // --- 关键修复 1：Padding 严格设置为 1倍 ---
+          // 之前的代码是 scaledStrokeWidth * 2，导致总宽 +4x，而 TS 只算 +2x，所以图被压扁了。
+          // 现在改为 1倍，总宽 +2x，完美匹配 TS 的容器。
+          const padding = Math.ceil(scaledStrokeWidth);
 
-          // Use render dimensions + padding
-          const finalWidth = renderWidth + padding * 2;
-          const finalHeight = renderHeight + padding * 2;
+          const finalWidth = cropW + padding * 2;
+          const finalHeight = cropH + padding * 2;
 
-          // Apply user's output scale (1x, 2x, 3x) to the final high-res canvas
-          canvas.width = finalWidth * scale;
-          canvas.height = finalHeight * scale;
+          const MAX_CANVAS = 4096;
+          const maxSide = Math.max(finalWidth, finalHeight);
+          let safeScale = 2;
+          if (maxSide * safeScale > MAX_CANVAS) {
+            safeScale = Math.max(0.5, MAX_CANVAS / maxSide);
+          }
 
-          // Scale context for the output scale AND the drawing operations
-          ctx.scale(scale, scale);
+          canvas.width = finalWidth * safeScale;
+          canvas.height = finalHeight * safeScale;
 
-          // --- Drawing Logic ---
+          ctx.scale(safeScale, safeScale);
 
-          // A. Stroke Layer (Shadow)
+          // --- 关键修复 2：动态增加步数消除锯齿 ---
+          // 之前固定 32步，大描边时会有波浪边。
+          // 现在根据描边周长动态计算步数，保证每步移动不超过 2px。
+          const circumference = 2 * Math.PI * scaledStrokeWidth;
+          const steps = Math.max(64, Math.ceil(circumference / 2));
+          const angleStep = (Math.PI * 2) / steps;
+
+          // A. 绘制描边
           ctx.globalCompositeOperation = 'source-over';
           ctx.shadowColor = strokeColor;
-          ctx.shadowBlur = scale * ratio; // Adjust blur for resolution
+          // 稍微增加一点模糊，让大描边边缘更柔和，不那么硬
+          ctx.shadowBlur = safeScale * Math.max(2, ratio);
 
-          const steps = 32;
-          const angleStep = (Math.PI * 2) / steps;
+          const drawX = padding - offsetX;
+          const drawY = padding - offsetY;
 
           for (let i = 0; i < steps; i++) {
             const angle = i * angleStep;
             const dx = Math.cos(angle) * scaledStrokeWidth;
             const dy = Math.sin(angle) * scaledStrokeWidth;
-            // Draw at render size (preserving node aspect ratio)
-            ctx.drawImage(img, padding + dx, padding + dy, renderWidth, renderHeight);
+            ctx.drawImage(img, drawX + dx, drawY + dy, natW, natH);
           }
 
-          // B. Solidify Color
+          // B. 填充实心颜色
           ctx.globalCompositeOperation = 'source-in';
           ctx.fillStyle = strokeColor;
           ctx.fillRect(0, 0, finalWidth, finalHeight);
 
-          // C. Original Image
+          // C. 绘制原图
           ctx.globalCompositeOperation = 'source-over';
           ctx.shadowColor = 'transparent';
           ctx.shadowBlur = 0;
-          ctx.drawImage(img, padding, padding, renderWidth, renderHeight);
-
-          // --- End Drawing ---
+          ctx.drawImage(img, drawX, drawY, natW, natH);
 
           resolve(canvas.toDataURL('image/png'));
         };

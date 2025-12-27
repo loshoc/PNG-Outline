@@ -121,7 +121,7 @@ figma.ui.onmessage = async (msg) => {
     figma.viewport.scrollAndZoomIntoView([newRect]);
 
     // Don't close plugin, allow generating again
-    figma.notify("✅ Outline added!");
+    figma.notify("Outline added!");
   } else if (msg.type === 'error') {
     figma.notify("❌ " + msg.message);
   }
