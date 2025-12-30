@@ -383,13 +383,13 @@
 
       if (pluginMessage.type === 'process-image') {
         activeRequests++;
-        const { bytes, width, height, options } = pluginMessage;
+        const { bytes, width, height, exportScale, options } = pluginMessage;
 
         try {
           const blob = new Blob([bytes], { type: 'image/png' });
           const url = URL.createObjectURL(blob);
 
-          const newImageBase64 = await addSmoothStroke(url, width, height, options.strokeWidth, options.strokeColor, options.scale);
+          const newImageBase64 = await addSmoothStroke(url, width, height, exportScale, options.strokeWidth, options.strokeColor);
 
           const raw = atob(newImageBase64.split(',')[1]);
           const uint8Array = new Uint8Array(new ArrayBuffer(raw.length));
@@ -406,8 +406,13 @@
           }, '*');
 
         } catch (error) {
-          console.error(error);
-          parent.postMessage({ pluginMessage: { type: 'error', message: 'Failed: ' + error.message } }, '*');
+          console.error('Processing error:', error);
+          parent.postMessage({
+            pluginMessage: {
+              type: 'error',
+              message: 'Processing failed: ' + (error instanceof Error ? error.message : String(error))
+            }
+          }, '*');
         } finally {
           activeRequests--;
           if (activeRequests <= 0) {
@@ -416,67 +421,48 @@
           }
         }
       } else if (pluginMessage.type === 'error') {
-        if (activeRequests === 0) {
-          generateBtn.disabled = false;
-        }
+        // Always re-enable button on error
+        generateBtn.disabled = false;
+        activeRequests = 0;
       }
     };
 
-    // --- 5. 核心算法 (修复缩小和锯齿) ---
-    async function addSmoothStroke(imageUrl, targetWidth, targetHeight, strokeWidth, strokeColor, scale) {
+    // --- 5. 核心算法 (使用导出倍率) ---
+    async function addSmoothStroke(imageUrl, nodeWidth, nodeHeight, exportScale, strokeWidth, strokeColor) {
       return new Promise((resolve, reject) => {
         const img = new Image();
         img.onload = () => {
           const canvas = document.createElement('canvas');
           const ctx = canvas.getContext('2d');
 
-          const natW = img.naturalWidth;
-          const natH = img.naturalHeight;
-          const sourceRatio = natW / natH;
-          const targetRatio = targetWidth / targetHeight;
+          // 图片已经是导出后的样子 (已按 exportScale 放大)
+          const imgW = img.naturalWidth;
+          const imgH = img.naturalHeight;
 
-          let cropW, cropH, offsetX, offsetY, ratio;
+          // 像素密度 = 导出倍率
+          // 例如: exportScale=2, 则图片像素是 Figma 点数的 2 倍
+          const pixelDensity = exportScale;
 
-          // 1. Center Crop 逻辑
-          if (sourceRatio > targetRatio) {
-            cropH = natH;
-            cropW = natH * targetRatio;
-            offsetX = (natW - cropW) / 2;
-            offsetY = 0;
-            ratio = cropH / targetHeight; // 密度基准：高
-          } else {
-            cropW = natW;
-            cropH = natW / targetRatio;
-            offsetX = 0;
-            offsetY = (natH - cropH) / 2;
-            ratio = cropW / targetWidth; // 密度基准：宽
-          }
-
-          const scaledStrokeWidth = strokeWidth * ratio;
-
-          // --- 关键修复 1：Padding 严格设置为 1倍 ---
-          // 之前的代码是 scaledStrokeWidth * 2，导致总宽 +4x，而 TS 只算 +2x，所以图被压扁了。
-          // 现在改为 1倍，总宽 +2x，完美匹配 TS 的容器。
+          // 描边宽度需要按像素密度缩放
+          const scaledStrokeWidth = strokeWidth * pixelDensity;
           const padding = Math.ceil(scaledStrokeWidth);
 
-          const finalWidth = cropW + padding * 2;
-          const finalHeight = cropH + padding * 2;
+          const finalWidth = imgW + padding * 2;
+          const finalHeight = imgH + padding * 2;
 
+          // 超采样抗锯齿 (在像素密度基础上再放大绘制)
           const MAX_CANVAS = 4096;
           const maxSide = Math.max(finalWidth, finalHeight);
-          let safeScale = 2;
-          if (maxSide * safeScale > MAX_CANVAS) {
-            safeScale = Math.max(0.5, MAX_CANVAS / maxSide);
+          let supersampling = 2;
+          if (maxSide * supersampling > MAX_CANVAS) {
+            supersampling = Math.max(1, Math.floor(MAX_CANVAS / maxSide));
           }
 
-          canvas.width = finalWidth * safeScale;
-          canvas.height = finalHeight * safeScale;
+          canvas.width = finalWidth * supersampling;
+          canvas.height = finalHeight * supersampling;
+          ctx.scale(supersampling, supersampling);
 
-          ctx.scale(safeScale, safeScale);
-
-          // --- 关键修复 2：动态增加步数消除锯齿 ---
-          // 之前固定 32步，大描边时会有波浪边。
-          // 现在根据描边周长动态计算步数，保证每步移动不超过 2px。
+          // 动态步数消除锯齿
           const circumference = 2 * Math.PI * scaledStrokeWidth;
           const steps = Math.max(64, Math.ceil(circumference / 2));
           const angleStep = (Math.PI * 2) / steps;
@@ -484,17 +470,13 @@
           // A. 绘制描边
           ctx.globalCompositeOperation = 'source-over';
           ctx.shadowColor = strokeColor;
-          // 稍微增加一点模糊，让大描边边缘更柔和，不那么硬
-          ctx.shadowBlur = safeScale * Math.max(2, ratio);
-
-          const drawX = padding - offsetX;
-          const drawY = padding - offsetY;
+          ctx.shadowBlur = supersampling * Math.max(1, pixelDensity * 0.3);
 
           for (let i = 0; i < steps; i++) {
             const angle = i * angleStep;
             const dx = Math.cos(angle) * scaledStrokeWidth;
             const dy = Math.sin(angle) * scaledStrokeWidth;
-            ctx.drawImage(img, drawX + dx, drawY + dy, natW, natH);
+            ctx.drawImage(img, padding + dx, padding + dy, imgW, imgH);
           }
 
           // B. 填充实心颜色
@@ -506,7 +488,7 @@
           ctx.globalCompositeOperation = 'source-over';
           ctx.shadowColor = 'transparent';
           ctx.shadowBlur = 0;
-          ctx.drawImage(img, drawX, drawY, natW, natH);
+          ctx.drawImage(img, padding, padding, imgW, imgH);
 
           resolve(canvas.toDataURL('image/png'));
         };
