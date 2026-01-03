@@ -4,7 +4,7 @@ A Figma plugin that adds high-quality outlines to images with anti-aliased, smoo
 
 ## Features
 
-- **High quality:** 4x export resolution with supersampling
+- **High quality:** High resolution export with supersampling
 - **Smart cropping:** Respects current crop position
 - **Customizable:** Adjustable stroke width and color
 - **Live preview:** See changes in real-time
@@ -25,15 +25,12 @@ npm install
 # Build
 npm run build
 
-# Watch mode
-npm run watch
-```
 
 Load the plugin in Figma: `Plugins` → `Development` → `Import plugin from manifest...`
 
 ## Technical Notes
 
-- Exports at 4x resolution for clarity
+- Exports at high resolution for clarity
 - Uses canvas API for image processing
 - Dynamic step calculation prevents jagged edges
 - All processing happens locally (no external servers)

@@ -62,9 +62,10 @@ figma.ui.onmessage = async (msg) => {
     const newRect = figma.createRectangle();
     const originalNode = figma.currentPage.selection[0];
 
-    // Place next to original
-    newRect.x = originalNode.x + originalNode.width + 20;
-    newRect.y = originalNode.y;
+    // Place on top of original, offset by stroke width
+    // If original is at (0,0) with stroke x, new image starts at (-x,-x)
+    newRect.x = originalNode.x - options.strokeWidth;
+    newRect.y = originalNode.y - options.strokeWidth;
 
     // The generated image contains the original content + stroke padding
     // Display size = original node size + 2 * stroke width
