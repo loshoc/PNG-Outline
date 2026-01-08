@@ -451,16 +451,49 @@
           const finalHeight = imgH + padding * 2;
 
           // 超采样抗锯齿 (在像素密度基础上再放大绘制)
-          const MAX_CANVAS = 4096;
+          // 提高限制以支持更大的图片,但保持在浏览器安全范围内
+          const MAX_CANVAS = 16384;
+          const MAX_CANVAS_PIXELS = 16777216; // 4096 * 4096 - 浏览器总像素数限制
           const maxSide = Math.max(finalWidth, finalHeight);
           let supersampling = 2;
-          if (maxSide * supersampling > MAX_CANVAS) {
+
+          // 对于非常大的图片,禁用超采样以避免超出限制
+          if (maxSide > 4096) {
+            supersampling = 1;
+          } else if (maxSide * supersampling > MAX_CANVAS) {
             supersampling = Math.max(1, Math.floor(MAX_CANVAS / maxSide));
           }
 
-          canvas.width = finalWidth * supersampling;
-          canvas.height = finalHeight * supersampling;
-          ctx.scale(supersampling, supersampling);
+          // 检查总像素数限制 (关键: 防止像 1200x1200 这样的中等图片失败)
+          const totalPixels = finalWidth * finalHeight * supersampling * supersampling;
+          if (totalPixels > MAX_CANVAS_PIXELS) {
+            const maxSupersampling = Math.floor(Math.sqrt(MAX_CANVAS_PIXELS / (finalWidth * finalHeight)));
+            supersampling = Math.max(1, maxSupersampling);
+            console.log(`Reduced supersampling to ${supersampling}x due to pixel area limit`);
+          }
+
+          try {
+            canvas.width = finalWidth * supersampling;
+            canvas.height = finalHeight * supersampling;
+
+            // 验证 canvas 是否成功分配
+            if (canvas.width === 0 || canvas.height === 0) {
+              throw new Error('Canvas dimensions are zero');
+            }
+
+            ctx.scale(supersampling, supersampling);
+          } catch (error) {
+            // 降级处理: 如果超采样失败,尝试不使用超采样
+            console.warn('Supersampling failed, falling back to 1x:', error);
+            supersampling = 1;
+            canvas.width = finalWidth;
+            canvas.height = finalHeight;
+
+            // 最后验证
+            if (canvas.width === 0 || canvas.height === 0 || canvas.width > MAX_CANVAS || canvas.height > MAX_CANVAS) {
+              throw new Error(`Image too large to process: ${finalWidth}x${finalHeight}px. Please use a smaller image or reduce stroke width.`);
+            }
+          }
 
           // 动态步数消除锯齿
           const circumference = 2 * Math.PI * scaledStrokeWidth;

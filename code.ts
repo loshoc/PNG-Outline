@@ -27,9 +27,28 @@ figma.ui.onmessage = async (msg) => {
     figma.notify("⏳ Processing...", { timeout: 2000 });
 
     // Export the node as it appears on canvas (respects crop position)
-    // Use 2x scale for better quality
+    // Use dynamic scale based on image size to prevent exceeding browser limits
     try {
-      const exportScale = 4;
+      // Calculate dynamic export scale based on image dimensions
+      const maxDimension = Math.max(node.width, node.height);
+      let exportScale: number;
+
+      if (maxDimension < 500) {
+        exportScale = 4; // Small images: high quality
+      } else if (maxDimension < 1500) {
+        exportScale = 2; // Medium images: balanced quality
+      } else {
+        exportScale = 1; // Large images: original size
+      }
+
+      // Ensure exported size doesn't exceed safe canvas limit (8192px)
+      const maxExportSize = 8192;
+      const wouldBeSize = maxDimension * exportScale;
+      if (wouldBeSize > maxExportSize) {
+        exportScale = Math.floor(maxExportSize / maxDimension);
+        exportScale = Math.max(1, exportScale);
+      }
+
       const bytes = await node.exportAsync({
         format: 'PNG',
         constraint: { type: 'SCALE', value: exportScale }
