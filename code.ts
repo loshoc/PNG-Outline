@@ -82,9 +82,13 @@ figma.ui.onmessage = async (msg) => {
     const originalNode = figma.currentPage.selection[0];
 
     // Place on top of original, offset by stroke width
+    // Use absoluteTransform to get true canvas position (handles nodes inside frames)
     // If original is at (0,0) with stroke x, new image starts at (-x,-x)
-    newRect.x = originalNode.x - options.strokeWidth;
-    newRect.y = originalNode.y - options.strokeWidth;
+    const absoluteX = originalNode.absoluteTransform[0][2];
+    const absoluteY = originalNode.absoluteTransform[1][2];
+
+    newRect.x = absoluteX - options.strokeWidth;
+    newRect.y = absoluteY - options.strokeWidth;
 
     // The generated image contains the original content + stroke padding
     // Display size = original node size + 2 * stroke width
