@@ -3,7 +3,9 @@ figma.showUI(__html__, { visible: true, width: 300, height: 400 });
 
 // Handle messages from UI
 figma.ui.onmessage = async (msg) => {
-  if (msg.type === 'request-process') {
+  if (msg.type === 'open-support-link') {
+    figma.openExternal('https://buymeacoffee.com/mimiwu');
+  } else if (msg.type === 'request-process') {
     // User clicked "Generate"
     const selection = figma.currentPage.selection;
 
@@ -73,43 +75,48 @@ figma.ui.onmessage = async (msg) => {
     }
 
   } else if (msg.type === 'image-processed') {
-    // UI finished processing
-    const { data, options } = msg;
-    const newBytes = data;
-    const newImage = figma.createImage(newBytes);
+    try {
+      // UI finished processing
+      const { data, options } = msg;
+      const newBytes = data;
+      const newImage = figma.createImage(newBytes);
 
-    const newRect = figma.createRectangle();
-    const originalNode = figma.currentPage.selection[0];
+      const newRect = figma.createRectangle();
+      const originalNode = figma.currentPage.selection[0];
 
-    // Place on top of original, offset by stroke width
-    // Use absoluteTransform to get true canvas position (handles nodes inside frames)
-    // If original is at (0,0) with stroke x, new image starts at (-x,-x)
-    const absoluteX = originalNode.absoluteTransform[0][2];
-    const absoluteY = originalNode.absoluteTransform[1][2];
+      // Place on top of original, offset by stroke width
+      // Use absoluteTransform to get true canvas position (handles nodes inside frames)
+      // If original is at (0,0) with stroke x, new image starts at (-x,-x)
+      const absoluteX = originalNode.absoluteTransform[0][2];
+      const absoluteY = originalNode.absoluteTransform[1][2];
 
-    newRect.x = absoluteX - options.strokeWidth;
-    newRect.y = absoluteY - options.strokeWidth;
+      newRect.x = absoluteX - options.strokeWidth;
+      newRect.y = absoluteY - options.strokeWidth;
 
-    // The generated image contains the original content + stroke padding
-    // Display size = original node size + 2 * stroke width
-    const displayWidth = originalNode.width + options.strokeWidth * 2;
-    const displayHeight = originalNode.height + options.strokeWidth * 2;
+      // The generated image contains the original content + stroke padding
+      // Display size = original node size + 2 * stroke width
+      const displayWidth = originalNode.width + options.strokeWidth * 2;
+      const displayHeight = originalNode.height + options.strokeWidth * 2;
 
-    newRect.resize(displayWidth, displayHeight);
+      newRect.resize(displayWidth, displayHeight);
 
-    newRect.fills = [{
-      type: 'IMAGE',
-      imageHash: newImage.hash,
-      scaleMode: 'FILL'  // Use FILL to maintain pixel-perfect quality
-    }];
+      newRect.fills = [{
+        type: 'IMAGE',
+        imageHash: newImage.hash,
+        scaleMode: 'FILL'  // Use FILL to maintain pixel-perfect quality
+      }];
 
-    newRect.name = "Stroked Image";
+      newRect.name = "Stroked Image";
 
-    figma.currentPage.selection = [newRect];
-    figma.viewport.scrollAndZoomIntoView([newRect]);
+      figma.currentPage.selection = [newRect];
+      figma.viewport.scrollAndZoomIntoView([newRect]);
 
-    // Don't close plugin, allow generating again
-    figma.notify("✅ Outline added!");
+      // Don't close plugin, allow generating again
+      figma.notify("✅ Outline added!");
+    } catch (error) {
+      console.error('Image insertion error:', error);
+      figma.notify('❌ This image is too large to process. Please use a smaller image and try again.');
+    }
   } else if (msg.type === 'error') {
     figma.notify("❌ " + msg.message);
   }
