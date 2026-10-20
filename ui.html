@@ -215,18 +215,21 @@
       cursor: progress;
     }
 
-    .footer-icon {
+    .support-link {
       margin-top: 12px;
-      font-size: 14px;
-      color: #CCC;
-      cursor: default;
-      user-select: none;
-      opacity: 0.6;
-      transition: opacity 0.3s ease;
+      color: #999;
+      font-size: 11px;
+      text-decoration: none;
+      opacity: 0.8;
+      transition: color 0.2s ease, opacity 0.2s ease;
     }
 
-    .footer-icon:hover {
+    .support-link:hover,
+    .support-link:focus-visible {
+      color: var(--primary);
       opacity: 1;
+      outline: none;
+      text-decoration: underline;
     }
 
     .drag-overlay {
@@ -281,7 +284,7 @@
 
   <div class="footer">
     <button id="generateBtn">Generate Outline</button>
-    <div class="footer-icon">🐾</div>
+    <a class="support-link" id="supportLink" href="https://buymeacoffee.com/mimiwu" target="_blank" rel="noopener noreferrer">🍎 Buy me an apple</a>
   </div>
 
   <script>
@@ -294,6 +297,7 @@
     const colorPreview = document.getElementById('colorPreview');
     const previewShape = document.getElementById('previewShape');
     const generateBtn = document.getElementById('generateBtn');
+    const supportLink = document.getElementById('supportLink');
 
     // --- 1. 拖动数值逻辑 ---
     let isDragging = false;
@@ -376,6 +380,15 @@
       }, '*');
     };
 
+    supportLink.onclick = (event) => {
+      event.preventDefault();
+      parent.postMessage({
+        pluginMessage: {
+          type: 'open-support-link'
+        }
+      }, '*');
+    };
+
     let activeRequests = 0;
 
     window.onmessage = async (event) => {
@@ -407,10 +420,13 @@
 
         } catch (error) {
           console.error('Processing error:', error);
+          const message = error instanceof Error && error.message.startsWith('This image is too large')
+            ? error.message
+            : 'Unable to process this image. Please try again.';
           parent.postMessage({
             pluginMessage: {
               type: 'error',
-              message: 'Processing failed: ' + (error instanceof Error ? error.message : String(error))
+              message: message
             }
           }, '*');
         } finally {
@@ -470,6 +486,13 @@
             const maxSupersampling = Math.floor(Math.sqrt(MAX_CANVAS_PIXELS / (finalWidth * finalHeight)));
             supersampling = Math.max(1, maxSupersampling);
             console.log(`Reduced supersampling to ${supersampling}x due to pixel area limit`);
+          }
+
+          // Even without supersampling, images beyond this limit are too large
+          // for the plugin webview to process reliably.
+          if (finalWidth * finalHeight > MAX_CANVAS_PIXELS) {
+            reject(new Error('This image is too large to process. Please use a smaller image and try again.'));
+            return;
           }
 
           try {
